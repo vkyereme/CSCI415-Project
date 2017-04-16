@@ -19,11 +19,7 @@ cin >> length;
 srand(time(NULL));
 for (int i =0; i<length; i++){
     
-        random = (rand()%75)+48; //whatever the random number is 
-        //when mod 94(printable characters), the result is never more 
-        //than adding 33 non-printing characters to get 
-        //128 total characters on the ASCII table
-        //rand() gives an integer from 0 to max (32767)
+        random = (rand()%75)+48; 
     
     a[i] = random; //adding random password to array
     cout << char(a[i]);
@@ -32,9 +28,8 @@ for (int i =0; i<length; i++){
 do{
     b[0]++;
     for(int i =0; i<length; i++){
-        if (b[i] >= 75 + 48){ //if the index in b array is more than 127 characters
-            b[i] -= 75; //then decrement it so that the index in b array can be less than 94
-                  //printable characters
+        if (b[i] >= 75 + 48){ 
+            b[i] -= 75; 
             b[i+1]++;
         }else break;
     }
