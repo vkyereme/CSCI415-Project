@@ -4,32 +4,20 @@
 #include<cstdlib>
 using namespace std;
 
-int main()
-{
 int a[1000]; //array of all possible password characters
-int length; //length of password
-int random; //random password to be generated
-int b[1000] = { 48 }; //array of attempted password cracks
+int b[1000]; //array of attempted password cracks
 unsigned long long tries = 0;
+int length; //length of password
+char alphabet[] = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
+
+
+void serial_passwordCrack(){
 bool cracked = false;
-
-cout << "Enter a password length: ";
-cin >> length;
-
-srand(time(NULL));
-for (int i =0; i<length; i++){
-    
-        random = (rand()%75)+48; 
-    
-    a[i] = random; //adding random password to array
-    cout << char(a[i]);
-}cout << endl;
-
 do{
     b[0]++;
     for(int i =0; i<length; i++){
-        if (b[i] >= 75 + 48){ 
-            b[i] -= 75; 
+        if (b[i] >= 26 + alphabet[i]){ 
+            b[i] -= 26; 
             b[i+1]++;
         }else break;
     }
@@ -46,7 +34,32 @@ do{
     tries++;
 }while(cracked==false);
 
-cout << "\r       \n";
+}
+
+
+__global__ void parallel_passwordCrack()
+{
+
+}
+
+int main()
+{
+int random; //random password to be generated
+
+cout << "Enter a password length: ";
+cin >> length;
+
+
+srand(time(NULL));
+for (int i =0; i<length; i++){
+    
+        random = alphabet[(rand()%26)]; 
+    
+    a[i] = random; //adding random password to array
+    cout << char(a[i]);
+}cout << endl;
+serial_passwordCrack();
+cout << "\n";
 for(int i=0; i<length; i++)
     cout << char (b[i]);
 cout << "\nNumber of tries: " << tries << endl;
