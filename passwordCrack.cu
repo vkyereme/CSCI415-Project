@@ -45,14 +45,18 @@ __global__ void parallel_passwordCrack(int length,float*d_output )
 {	
 	int idx = blockIdx.x*blockDim.x+threadIdx.x;
 	bool cracked = false;
+	int mark=0;
 do{
     b[0]++;
-    for(int i =0; i<length; i++){
-        if (b[i] >= 26 + alphabet[i]){ 
-            b[i] -= 26; 
-            b[i+1]++;
-        }else break;
-    }
+    	
+	if(mark>=26){
+        if (b[idx] >= 26 + alphabet[idx]){ 
+            b[idx] -= 26; 
+            b[idx+1]++;
+	}}else{
+		mark++;
+	}
+	
     cracked=true;
     for(int k=0; k<length; k++)
         if(b[k]!=a[k]){
@@ -66,6 +70,7 @@ do{
     tries++;
 }while(cracked==false);
 
+	d_output[] = &b;
 	
 
 }
