@@ -41,36 +41,38 @@ do{
 }
 
 
-__global__ void parallel_passwordCrack(int length,float*d_output )
+__global__ void parallel_passwordCrack(int length,float*d_output,int* a, long attempts )
 {	
 	int idx = blockIdx.x*blockDim.x+threadIdx.x;
 	bool cracked = false;
 	int mark=0;
+        char alphabetTable[] = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };        
+	int newB[1000]; 
 do{
-    b[0]++;
+    newB[0]++;
     	
-	if(mark>=26){
-        if (b[idx] >= 26 + alphabet[idx]){ 
-            b[idx] -= 26; 
-            b[idx+1]++;
+	if(mark>=length){
+        if (newB[idx] >= 26 + alphabetTable[idx]){ 
+            newB[idx] -= 26; 
+            newB[idx+1]++;
 	}}else{
 		mark++;
 	}
 	
     cracked=true;
     for(int k=0; k<length; k++)
-        if(b[k]!=a[k]){
+        if(newB[k]!=a[k]){
             cracked=false;
             break;
         }else{cracked = true;}
-    if( (tries & 0x7ffffff) == 0 )
-        cout << "\r       \r   ";
-    else if( (tries & 0x1ffffff) == 0 )
-        cout << ".";
-    tries++;
+//    if( (tries & 0x7ffffff) == 0 )
+//        cout << "\r       \r   ";
+//    else if( (tries & 0x1ffffff) == 0 )
+//        cout << ".";
+    attempts++;
 }while(cracked==false);
 
-	d_output[] = &b;
+	d_output[idx] = (float)newB[idx];
 	
 
 }
@@ -99,10 +101,12 @@ int main()
 {
 int length; //length of password
 int random; //random password to be generated
+long attempts; //number of attempts to crack the password
+int *d_input;
 
 cout << "Enter a password length: ";
 cin >> length;
-
+float *h_gpu_result = (float*)malloc(1000*sizeof(float));
 
 srand(time(NULL));
 cout << "Random generated password: " << endl;
@@ -119,12 +123,12 @@ for (int i =0; i<length; i++){
 //allocate GPU memory
   cudaMalloc((void **) &d_output,1000*sizeof(float));
 //transfer the array to the GP
-cudaMemcpy(&a, &a, 1000*sizeof(float),cudaMemcpyHostToDevice);
+cudaMemcpy(d_input, &a, 1000*sizeof(float),cudaMemcpyHostToDevice);
 //launch the kernel
-int threards = N/1024;
-parallel_passwordCrack<<<threards,1024>>>(length,d_output);
+int threards = length/1024;
+parallel_passwordCrack<<<threards,1024>>>(length,d_output,d_input,attempts);
 //copy back the result array to the CPU
-cudaMemcpy(h_gpu_result,d_output,N*sizeof(float),cudaMemcpyDeviceToHost);
+cudaMemcpy(h_gpu_result,d_output,1000*sizeof(float),cudaMemcpyDeviceToHost);
 
 cout << "Serial Password Cracked: " << endl;
 serial_passwordCrack(length);
@@ -132,6 +136,16 @@ cout << "\n";
 for(int i=0; i<length; i++){
     cout << char(b[i]);
 }cout << "\nNumber of tries: " << tries << endl;
+
+cout << "\nParallel Password Cracked: " << endl;
+for(int i=0; i<length; i++){
+	cout << char(h_gpu_result[i]);
+}
+cout << "\nNumber of attempts: " << attempts << endl;
+
+cudaFree(d_output);
+cudaFree(d_input);
+free(h_gpu_result);
 
 return 0;
 }
