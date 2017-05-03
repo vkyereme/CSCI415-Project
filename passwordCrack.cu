@@ -6,14 +6,21 @@
 #include<sys/time.h>
 #include<stdio.h>
 #include<iomanip>
+/* we need these includes for CUDA's random number stuff */
+#include<curand.h>
+#include<curand_kernel.h>
 
 using namespace std;
 
-int a[1000]; //array of all possible password characters
+#define MAX 26
+
+//int a[1000]; //array of all possible password characters
 int b[1000]; //array of attempted password cracks
 unsigned long long tries = 0;
 char alphabet[] = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
 size_t result = 1000 * sizeof(float);
+
+int *a = (int *) malloc(result);
 
 void serial_passwordCrack(int length){
 bool cracked = false;
@@ -41,34 +48,60 @@ do{
 }
 
 
-__global__ void parallel_passwordCrack(int length,int*d_output,int* a, long attempts)
+__global__ void parallel_passwordCrack(int length,int*d_output,int *a, long attempts)
 {	
-	int idx = blockDim.x * blockIdx.x + threadIdx.x;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	bool cracked = false;
-	int mark=0;
         char alphabetTable[] = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };        
 	int newB[1000]; 
  
-char alph;	
- 
-while(!cracked){
 
-	alph = alphabetTable[rand()%26];
-	d_output[idx] = int(alph);
-	__syncthreads();
-	for(int i = 0; i<length; i++){
-		if(d_output[i] != a[i])
-		{
-			cracked = false;
-		}
-		else{
-		cracked = true;
-		}
+__shared__ int nIter;
+__shared__ int idT;
 
-	}
+do{
 
-  }
+   newB[0]++;
+    for(int i =0; i<length; i++){
+        if (newB[i] >= 26 + alphabetTable[i]){ 
+            newB[i] -= 26; 
+            newB[i+1]++;
+        }else break;
+    }
     
+    cracked=true;
+
+    for(int k=0; k<length; k++)
+    {
+        if(newB[k]!=a[k]){
+            cracked=false;
+            break;
+        }else
+        {
+            cracked = true;
+       
+        }
+    }
+    if(cracked){
+      __syncthreads();
+      idT = idx;
+      nIter = 1;
+       __syncthreads();
+      break;
+    }
+
+    attempts++;
+}while(!cracked);
+
+if(idx == idT){
+        for(int i = 0; i< length; i++){
+  
+             d_output[i] = newB[i];
+    }
+
+ }
+
+
 
 }
 
@@ -95,7 +128,7 @@ int main()
 {
 int length; //length of password
 int random; //random password to be generated
-long attempts; //number of attempts to crack the password
+long attempts = 0; //number of attempts to crack the password
 int *d_input = (int *) malloc(result);
 
 cout << "Enter a password length: ";
@@ -112,6 +145,20 @@ for (int i =0; i<length; i++){
     cout << char(a[i]);
 }cout << "\n" << endl;
 
+long long serial_start_time = start_timer();
+
+ cout << "Serial Password Cracked: " << endl;
+ serial_passwordCrack(length);
+ cout << "\n";
+
+long long serial_end_time = stop_timer(serial_start_time, "\nSerial Run Time");
+
+for(int i=0; i<length; i++){
+     cout << char(b[i]);
+}cout << "\nNumber of tries: " << tries << endl;
+
+//long long serial_end_time = stop_timer(serial_start_time, "\nSerial Run Time");
+
 //declare GPU memory pointers
   int *d_output;
 //allocate GPU memory
@@ -127,19 +174,20 @@ err = cudaMemcpy(d_input, a, result,cudaMemcpyHostToDevice);
       exit(EXIT_FAILURE);
   }
 
+//curandState_t* states;
+
+long long parallel_start_time = start_timer();
 //launch the kernel
-int threads =1;
+int threads =length*10;
+
 parallel_passwordCrack<<<1,threads>>>(length,d_output,d_input,attempts);
+
+long long parallel_end_time = stop_timer(parallel_start_time, "\nParallel Run Time");
+
 //copy back the result array to the CPU
+
 cudaMemcpy(h_gpu_result,d_output,1000*sizeof(int),cudaMemcpyDeviceToHost);
 
-cout << "Serial Password Cracked: " << endl;
-serial_passwordCrack(length);
-cout << "\n";
-for(int i=0; i<length; i++){
-    cout << char(b[i]);
-}
-cout << "\nNumber of tries: " << tries << endl;
 
 cout << "\nParallel Password Cracked: " << endl;
 for(int i=0; i<length; i++){
@@ -149,6 +197,7 @@ cout << "\nNumber of attempts: " << attempts << endl;
 
 cudaFree(d_output);
 cudaFree(d_input);
+//cudaFree(states);
 free(h_gpu_result);
 
 return 0;
