@@ -48,7 +48,7 @@ do{
 }
 
 
-__global__ void parallel_passwordCrack(int length,int*d_output,int *a, long attempts)
+__global__ void parallel_passwordCrack(int length,int*d_output,int *a)
 {	
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	bool cracked = false;
@@ -58,8 +58,14 @@ __global__ void parallel_passwordCrack(int length,int*d_output,int *a, long atte
 
 __shared__ int nIter;
 __shared__ int idT;
+__shared__ long totalAttempt;
 
 do{
+
+   if(idx == 0){
+	nIter = 0;
+	totalAttempt = 0;
+   }   
 
    newB[0]++;
     for(int i =0; i<length; i++){
@@ -82,16 +88,18 @@ do{
        
         }
     }
-    if(cracked){
-      __syncthreads();
+    if(cracked && nIter == 0){
+      
       idT = idx;
-      nIter = 1;
-       __syncthreads();
       break;
     }
+    else if(nIter){
 
-    attempts++;
-}while(!cracked);
+	break;
+    }
+
+    totalAttempt++;
+}while(!cracked || !nIter);
 
 if(idx == idT){
         for(int i = 0; i< length; i++){
@@ -128,7 +136,6 @@ int main()
 {
 int length; //length of password
 int random; //random password to be generated
-long attempts = 0; //number of attempts to crack the password
 int *d_input = (int *) malloc(result);
 
 cout << "Enter a password length: ";
@@ -136,6 +143,8 @@ cin >> length;
 int *h_gpu_result = (int*)malloc(1000*sizeof(int));
 
 srand(time(NULL));
+
+//generating random password
 cout << "Random generated password: " << endl;
 for (int i =0; i<length; i++){
     
@@ -166,7 +175,7 @@ for(int i=0; i<length; i++){
   cudaMalloc((void **) &d_input, result);
 
 cudaError_t err = cudaSuccess;
-//transfer the array to the GP
+//transfer the array to the GPU
 err = cudaMemcpy(d_input, a, result,cudaMemcpyHostToDevice);
  if(err != cudaSuccess)
   {
@@ -174,13 +183,13 @@ err = cudaMemcpy(d_input, a, result,cudaMemcpyHostToDevice);
       exit(EXIT_FAILURE);
   }
 
-//curandState_t* states;
+
+//launch the kernel
+int threads =length;
 
 long long parallel_start_time = start_timer();
-//launch the kernel
-int threads =length*10;
 
-parallel_passwordCrack<<<1,threads>>>(length,d_output,d_input,attempts);
+parallel_passwordCrack<<<1,threads>>>(length,d_output,d_input);
 
 long long parallel_end_time = stop_timer(parallel_start_time, "\nParallel Run Time");
 
@@ -193,11 +202,10 @@ cout << "\nParallel Password Cracked: " << endl;
 for(int i=0; i<length; i++){
 	printf("%c\n", char(h_gpu_result[i]));
 }
-cout << "\nNumber of attempts: " << attempts << endl;
+printf("\n");
 
 cudaFree(d_output);
 cudaFree(d_input);
-//cudaFree(states);
 free(h_gpu_result);
 
 return 0;
